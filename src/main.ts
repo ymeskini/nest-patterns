@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import * as morgan from 'morgan';
+import morgan from 'morgan';
 
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
