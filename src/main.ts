@@ -16,6 +16,11 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
       // from objects to Class instances
       transform: true,
+      transformOptions: {
+        // enable implicit conversion of primitive types
+        // cf. common/dto/pagination-query.dto.ts
+        enableImplicitConversion: true,
+      },
     }),
   );
   await app.listen(PORT);
