@@ -13,6 +13,7 @@ async function bootstrap() {
     new ValidationPipe({
       // remove all non listed properties in dtos
       whitelist: true,
+      // 400 error if non listed properties are sent
       forbidNonWhitelisted: true,
       // from objects to Class instances
       transform: true,
