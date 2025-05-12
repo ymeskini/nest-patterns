@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
-import { CoffeesModule } from './coffees/coffees.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
+
+import { CoffeesModule } from './coffees/coffees.module';
 import { CoffeeRatingModule } from './coffee-rating/coffee-rating.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     CoffeesModule,
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -14,7 +19,7 @@ import { CoffeeRatingModule } from './coffee-rating/coffee-rating.module';
       password: 'pass123',
       database: 'postgres',
       autoLoadEntities: true,
-      synchronize: true, // only for dev
+      // synchronize: true, // prefer using migrations instead
     }),
     CoffeeRatingModule,
   ],
