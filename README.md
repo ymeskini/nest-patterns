@@ -232,10 +232,10 @@ export class CoffeesService {}
 
 # Building Blocks
 
-- Exception filters
-- Pipes
-- Guards
-- Interceptors
+- Exception filters cf. `src/common/filters/http-exception.filter.ts`
+- Pipes: for transformation and validation cf `src/common/pipes/parse-int.pipe.ts`
+- Guards cf. `src/common/guards/api-key.guard.ts`
+- Interceptors cf. `src/common/interceptors/wrap-response.interceptor.ts`
 
 Nest building blocks can be:
 - Globally-scoped, for example in main.ts with `app.useGlobalPipes(ValidationPipe)`
