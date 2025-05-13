@@ -8,6 +8,8 @@ import { validate } from './config/env.validation';
 
 @Module({
   imports: [
+    // this will delay the instantiation after all modules are loaded
+    // so after the config module
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
         type: 'postgres',

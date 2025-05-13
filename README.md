@@ -228,3 +228,17 @@ export class CoffeesService {}
 @Injectable({ scope: Scope.REQUEST })
 export class CoffeesService {}
 ```
+
+
+# Building Blocks
+
+- Exception filters
+- Pipes
+- Guards
+- Interceptors
+
+Nest building blocks can be:
+- Globally-scoped, for example in main.ts with `app.useGlobalPipes(ValidationPipe)`
+- Controller-scoped, for example in a controller with `@UsePipes(ValidationPipe)`
+- Method-scoped, for example in a controller method with `@UsePipes(ValidationPipe)`
+- And (the bonus 4th one) Param-scoped which as we said, is available to Pipes only. `@Body(ValidationPipe)`
