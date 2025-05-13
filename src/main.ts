@@ -36,7 +36,6 @@ async function bootstrap() {
     .setTitle('Coffee Application')
     .setDescription('The coffee API description')
     .setVersion('1.0')
-    .addTag('coffee')
     .build();
 
   await SwaggerModule.loadPluginMetadata(metadata);
