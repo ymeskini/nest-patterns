@@ -1,7 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import morgan from 'morgan';
 
+import metadata from './metadata';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { WrapResponseInterceptor } from './common/interceptors/wrap-response.interceptor';
@@ -10,6 +12,7 @@ const PORT = process.env.PORT ?? 3000;
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
   app.use(morgan('tiny'));
   app.useGlobalPipes(
     new ValidationPipe({
@@ -28,6 +31,18 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new WrapResponseInterceptor());
+
+  const config = new DocumentBuilder()
+    .setTitle('Coffee Application')
+    .setDescription('The coffee API description')
+    .setVersion('1.0')
+    .addTag('coffee')
+    .build();
+
+  await SwaggerModule.loadPluginMetadata(metadata);
+  const documentFactory = () => SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, documentFactory);
+
   await app.listen(PORT);
 }
 
