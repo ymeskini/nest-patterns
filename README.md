@@ -557,3 +557,328 @@ curl -X GET -w "\nTime total: %{time_total}s\n" "localhost:3000/fibonacci/?n=60"
 // to see if endpoint is still responsive
 curl -X GET -w "\nTime total: %{time_total}s\n" "localhost:3000"
 ```
+
+
+# Create a configurable module
+Manually creating highly configurable, dynamic modules that expose async methods (be it registerAsync, forRootAsync) is quite complicated, especially for newcomers! You may have seen methods like these when working with official Nest packages such as "@nestjs/typeorm", "@nestjs/graphql", et cetera). In these packages you have certainly done things like TypeOrmModule.forRoot (or forRootAsync) when working with them.
+
+If you have ever tried to create your own DynamicModule that accomplishes similar things, you may have realized it's not very straightforward and involves quite a bit of boilerplate! This is why Nest exposes a somewhat new class called the ConfigurableModuleBuilder. Which helps us facilitate and simplify this entire process, and lets us construct a module "blueprint" - all in just a few lines of code. While creating basic configurable modules is a pretty straightforward process, leveraging all the built-in features of the ConfigurableModuleBuilder might not be that obvious!
+
+
+```typescript
+// ⚙️ Terminal
+nest g mo http-client
+
+// ----------------
+// 📝 FINAL - http-client.module-definition.ts
+import { ConfigurableModuleBuilder } from '@nestjs/common';
+
+export const {
+  ConfigurableModuleClass,
+  MODULE_OPTIONS_TOKEN: HTTP_MODULE_OPTIONS,
+  OPTIONS_TYPE,
+  ASYNC_OPTIONS_TYPE,
+} = new ConfigurableModuleBuilder<{
+  baseUrl?: string;
+}>({ alwaysTransient: true })
+  // .setClassMethodName('forRoot')
+  // .setFactoryMethodName('resolve')
+  .setExtras<{ isGlobal?: boolean }>(
+    {
+      isGlobal: true,
+    },
+    (definition, extras) => ({
+      ...definition,
+      global: extras.isGlobal,
+    }),
+  )
+  .build();
+
+// ----------------
+// 📝 FINAL - http-client.moduele.ts
+import { DynamicModule, Inject, Module } from '@nestjs/common';
+import {
+  ASYNC_OPTIONS_TYPE,
+  ConfigurableModuleClass,
+  HTTP_MODULE_OPTIONS,
+  OPTIONS_TYPE,
+} from './http-client.module-definition';
+
+@Module({})
+export class HttpClientModule extends ConfigurableModuleClass {
+  constructor(@Inject(HTTP_MODULE_OPTIONS) private options) {
+    console.log(options);
+    super();
+  }
+
+  static register(options: typeof OPTIONS_TYPE): DynamicModule {
+    return {
+      // your custom logic here
+      ...super.register(options),
+    };
+  }
+
+  static registerAsync(options: typeof ASYNC_OPTIONS_TYPE): DynamicModule {
+    return {
+      // your custom logic here
+      ...super.registerAsync(options),
+    };
+  }
+}
+
+// --------
+// 📝 app.module.ts - Using the HttpClientModule
+@Module({
+  imports: [
+   // ...
+    HttpClientModule.register({ baseUrl: 'http://nestjs.com' }), // 👈
+    // ⚠️  Alternatively:
+    // HttpClientModule.registerAsync({
+    //   useFactory: () => ({ baseUrl: 'http://nestjs.com' }),
+    // }),
+  ],
+  // ...
+})
+export class AppModule {}
+```
+
+
+# Composition with Mixins
+
+It's very useful to create common logic and keeping the way of writing classes with decorators in NestJS.
+
+```typescript
+// ⚙️ - Terminal
+nest g class common/mixins/with-uuid.mixin
+
+// -----------
+// 📝 FINAL - with-uuid.mixin.ts
+import { Type } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+export function WithUuid<TBase extends Type>(Base: TBase) {
+  return class extends Base {
+    uuid = randomUUID();
+
+    regenerateUuid() {
+      this.uuid = randomUUID();
+    }
+  };
+}
+
+// -----------
+// 📝 FINAL - coffee.entity.ts
+import { WithUuid } from '../../common/mixins/with-uuid.mixin/with-uuid.mixin';
+
+export class Coffee {
+  constructor(public name: string) {}
+}
+
+const CoffeeWithUuidCls = WithUuid(Coffee); // 👈 use the new WithUuid mixin
+const coffee = new CoffeeWithUuidCls('Buddy Brew');
+
+// ------------
+// ⚙️ - Terminal - generate Entity exists Pipe
+nest g pipe common/pipes/entity-exists
+
+// -----------
+// 📝 FINAL - entity-exists.pipe.ts
+import {
+  ArgumentMetadata,
+  Inject,
+  Injectable,
+  PipeTransform,
+  Type,
+} from '@nestjs/common';
+
+export function EntityExistsPipe(entityCls: Type): Type<PipeTransform> {
+  @Injectable()
+  class EntityExistsPipeCls implements PipeTransform {
+    constructor(
+      @Inject(entityCls)
+      private entityRepository: { exists(condition: unknown): Promise<void> },
+    ) {}
+
+    async transform(value: any, metadata: ArgumentMetadata) {
+      await this.entityRepository.exists({ where: { id: value } }); // throws if entity does not exist
+      return value;
+    }
+  }
+  return EntityExistsPipeCls;
+}
+
+// 📝 - Coffees.controller.ts
+@Patch(':id')
+update(
+  @Param('id', EntityExistsPipe(Coffee)) id: string, // 👈 example of using the new Pipe (comment out next line)
+  // @Param('id') id: string,
+  @Body() updateCoffeeDto: UpdateCoffeeDto,
+) {
+  return this.coffeesService.update(+id, updateCoffeeDto);
+}
+
+/**
+ * NOTE: Before we finish, let's make sure we comment that line out as it was all the pseudo-code -
+ * since we don't have an ORM setup in our application.
+ **/
+```
+
+# Schematics
+A schematic is a template-based code generator that is a set of instructions for transforming a software project by generating or modifying code.
+
+Angular Devkit Schematics were introduced by the Angular team in 2018. However, even though schematics were developed by the Angular team, and despite the word angular being in the "name" - anyone can still use them, in any sense, to generate any type of code, as they are platform independent. (so you could generate anything whether it's NestJS, React, Vue, etc).
+
+We can utilize these schematics to enforce architectural rules and conventions, making our projects consistent and inter-operative. Or we could create schematics to help us generate commonly-used code - shared services, modules, interfaces, health checks, docker files etc.
+
+For a more real-world example, with the help of schematics, we could reduce the amount of time we might need to setup all the boilerplate for creating a new microservice within our organization by creating a microservice schematic that generates all of the common code / loggers / tools / etc that we might commonly use in our organizations microservices.
+
+## Generate a new schematic
+
+In schematics, the virtual file system is represented by a Tree. A Tree data structure contains a base (or a set of files that already exists), as well as a staging area (which is a list of changes to be applied to that base).
+
+When making modifications, we don't actually change the base itself, but add those modifications to the staging area.
+
+A Rule object - defines a function that takes a Tree, applies transformations (more on transformations in a moment), and returns a new Tree. The main file for a schematic, which is that index.ts file, defines a set of rules that implement the schematic's logic.
+
+A transformation is represented by an Action - of which there are four action types: Create, Rename, Overwrite, and Delete.
+
+Each schematic runs in a context, represented by a SchematicContext object.
+
+```typescript
+// ⚙️ Terminal - generate blank schematic using npx
+npx @angular-devkit/schematics-cli blank --name=schematics
+/** Note: we're going to use npx here,
+ *  but note that alternatively - you could install the "@angular-devkit/schematics-cli" package globally
+ *  and refer to it as "schematics" instead of using npx - if you prefer.
+ **/
+
+// 🏗 Install required dev dependency
+npm i @schematics/angular -D
+
+// 🏗 Build the app in "watch" mode
+npm run build -- --watch
+
+// ⚙️ Terminal - TO EXECUTE THE SCHEMATIC (when you are ready)
+npx @angular-devkit/schematics-cli ./schematics:configurable-module
+// NOTE: --debug=false (needed to actually "run" it), it is debug=true by default
+
+// ----------
+// 📝 FINAL - schematics collections.json
+{
+  "$schema": "../node_modules/@angular-devkit/schematics/collection-schema.json",
+  "schematics": {
+    "configurable-module": {
+      "description": "Generates a configurable module.",
+      "factory": "./configurable-module/index#generate",
+      "schema": "./configurable-module/schema.json"
+    }
+  }
+}
+
+
+// ----------
+// 📝 FINAL - index.ts (configurable-module)
+import { dasherize } from '@angular-devkit/core/src/utils/strings';
+import {
+  apply,
+  chain,
+  externalSchematic,
+  mergeWith,
+  move,
+  Rule,
+  SchematicContext,
+  strings,
+  template,
+  Tree,
+  url,
+} from '@angular-devkit/schematics';
+import * as ts from '@schematics/angular/third_party/github.com/Microsoft/TypeScript/lib/typescript';
+import { findNodes, insertImport } from '@schematics/angular/utility/ast-utils';
+import { InsertChange } from '@schematics/angular/utility/change';
+
+interface ConfigurableModuleSchematicOptions {
+  name: string;
+}
+
+function updateModuleFile(
+  tree: Tree,
+  options: ConfigurableModuleSchematicOptions,
+): Tree {
+  const name = dasherize(options.name);
+  const moduleFilePath = `src/${name}/${name}.module.ts`;
+  const moduleFileContent = tree.readText(moduleFilePath);
+  const source = ts.createSourceFile(
+    moduleFilePath,
+    moduleFileContent,
+    ts.ScriptTarget.Latest, // use the latest TypeScript version
+    true,
+  );
+  const updateRecorder = tree.beginUpdate(moduleFilePath);
+  const insertImportChange = insertImport(
+    source,
+    moduleFilePath,
+    'ConfigurableModuleClass',
+    `./${name}.module-definition`,
+  );
+  if (insertImportChange instanceof InsertChange) {
+    updateRecorder.insertRight(
+      insertImportChange.pos,
+      insertImportChange.toAdd,
+    );
+  }
+  const classNode = findNodes(source, ts.SyntaxKind.ClassDeclaration)[0];
+  updateRecorder.insertRight(
+    classNode.end - 2,
+    'extends ConfigurableModuleClass ',
+  );
+  tree.commitUpdate(updateRecorder);
+
+  return tree;
+}
+
+// You don't have to export the function as default. You can also have more than one rule factory
+// per file.
+export function generate(options: ConfigurableModuleSchematicOptions): Rule {
+  return (_tree: Tree, _context: SchematicContext) => {
+    const templateSource = apply(url('./files'), [
+      template({ ...options, ...strings }),
+      move('src'),
+    ]);
+
+    return chain([
+      externalSchematic('@nestjs/schematics', 'module', {
+        name: options.name,
+      }),
+      mergeWith(templateSource),
+      (tree) => updateModuleFile(tree, options),
+    ]);
+  };
+}
+
+// ----------
+// 📝 FINAL - files / __name@dasherize__.module-definition.ts
+import { ConfigurableModuleBuilder } from '@nestjs/common';
+
+export const { ConfigurableModuleClass } =
+  new ConfigurableModuleBuilder().build();
+
+// ----------
+// 📝 FINAL - schema.json
+{
+  "$schema": "http://json-schema.org/schema",
+  "$id": "configurable-module",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The name of the module.",
+      "$default": {
+        "$source": "argv",
+        "index": 0
+      },
+      "x-prompt": "What name would you like to use for the module?"
+    }
+  },
+  "required": ["name"]
+}
+```
