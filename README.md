@@ -882,3 +882,484 @@ export const { ConfigurableModuleClass } =
   "required": ["name"]
 }
 ```
+
+
+# DI Subtrees
+```typescript
+// ⚙️ Terminal
+nest g resource tags
+
+// -------------
+// 📝 FINAL - tags.module.ts
+import { Module, OnApplicationBootstrap } from '@nestjs/common';
+import { TagsService } from './tags.service';
+import { TagsController } from './tags.controller';
+import { ContextIdFactory, ModuleRef } from '@nestjs/core';
+
+@Module({
+  controllers: [TagsController],
+  providers: [TagsService],
+})
+export class TagsModule implements OnApplicationBootstrap {
+  constructor(private readonly moduleRef: ModuleRef) {}
+
+  async onApplicationBootstrap() {
+    // ⚠️ Make sure to comment out everything inside this method, before continuing onto later lessons ⚠️
+    const contextId = ContextIdFactory.create();
+    this.moduleRef.registerRequestByContextId({ hello: 'world' }, contextId);
+    const tagsService = await this.moduleRef.resolve(TagsService, contextId);
+    console.log(tagsService);
+    const tagsServices = await Promise.all([
+      this.moduleRef.resolve(TagsService, contextId),
+      this.moduleRef.resolve(TagsService, contextId),
+    ]);
+    console.log(tagsServices[0] === tagsServices[1]);
+  }
+}
+
+// -------------
+// 📝 FINAL - tags.service.ts
+@Injectable({ scope: Scope.REQUEST })
+export class TagsService {
+  constructor(@Inject(REQUEST) request: unknown) { // 👈
+    console.log(request);
+  }
+  // ...
+}
+```
+
+Real world example:
+```typescript
+// -------
+// ️⚙️ Terminal
+npm i @nestjs/event-emitter
+// generate payments module
+nest g mo payments
+// generate the PaymentsWebhookController in that module
+nest g co payments/payments-webhook --flat
+// generate a new service called "NotificationsService"
+nest g s payments/notifications --flat
+// generate another "SubscriptionsService" class in the same module
+nest g s payments/subscriptions --flat
+
+// -------
+// 📝 app.module.ts
+@Module({
+  imports: [
+    EventEmitterModule.forRoot(), // 👈 add EventEmitterModule
+    // ...
+  ],
+  // ...
+})
+export class AppModule {}
+
+// -------
+// 📃 FINAL - payments-webhooks.controller.ts
+import { Controller, Get, Req } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PaymentFailedEvent } from './events/payment-failed.event';
+import { Request } from 'express';
+import { ContextIdFactory, ModuleRef } from '@nestjs/core';
+
+@Controller('payments-webhook')
+export class PaymentsWebhookController {
+  constructor(
+    private readonly eventEmitter: EventEmitter2,
+    private readonly moduleRef: ModuleRef,
+  ) {}
+
+  @Get()
+  webhook(@Req() request: Request) {
+    const contextId = ContextIdFactory.create();
+    const paymentId = Math.floor(Math.random() * 1000);
+    this.moduleRef.registerRequestByContextId(request, contextId);
+
+    this.eventEmitter.emit(
+      PaymentFailedEvent.key,
+      new PaymentFailedEvent(paymentId, { contextId }),
+    );
+  }
+}
+
+
+// -------
+// 📝 FINAL - payment-failed.event.ts - NEW FILE
+import { ContextId } from '@nestjs/core';
+
+export class PaymentFailedEvent {
+  static readonly key = 'PAYMENT_FAILED';
+  constructor(
+    public readonly paymentId: number,
+    public readonly meta: { contextId: ContextId },
+  ) {}
+}
+
+
+// -------
+// 📝 FINAL - notifications.service.ts // 👈
+import { Injectable } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { OnEvent } from '@nestjs/event-emitter';
+import { EventContext } from './context/event-context';
+import { PaymentFailedEvent } from './events/payment-failed.event';
+
+@Injectable()
+export class NotificationsService {
+  constructor(private readonly moduleRef: ModuleRef) {}
+
+  @OnEvent(PaymentFailedEvent.key)
+  async sendPaymentNotification(event: PaymentFailedEvent) {
+    const eventContext = await this.moduleRef.resolve(
+      EventContext,
+      event.meta.contextId,
+    );
+
+    console.log('Sending a payment notification', eventContext.request.url);
+  }
+}
+
+// -------
+// 📝 FINAL - subscriptions.service.ts
+import { Injectable } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
+import { OnEvent } from '@nestjs/event-emitter';
+import { EventContext } from './context/event-context';
+import { PaymentFailedEvent } from './events/payment-failed.event';
+
+@Injectable()
+export class SubscriptionsService {
+  constructor(private readonly moduleRef: ModuleRef) {}
+
+  @OnEvent(PaymentFailedEvent.key) // 👈
+  async cancelSubscription(event: PaymentFailedEvent) {
+    const eventContext = await this.moduleRef.resolve(
+      EventContext,
+      event.meta.contextId,
+    );
+
+    console.log('Cancelling subscription', eventContext.request.url);
+  }
+}
+
+/**
+ * open up your terminals in a separate terminal window let's trigger the
+ * /payments-webhook endpoint using CURL
+ **/
+ curl localhost:3000/payments-webhook
+
+
+// -------
+// 📝 FINAL - event-context.ts
+import { Inject, Injectable, Scope } from '@nestjs/common';
+import { REQUEST } from '@nestjs/core';
+import { Request } from 'express';
+
+@Injectable({ scope: Scope.REQUEST })
+export class EventContext {
+  constructor(@Inject(REQUEST) public readonly request: Request) {}
+}
+```
+
+# Durable Providers
+## What's Multi-tenancy?
+Multi-tenancy is a software architecture pattern where a single instance of a software application serves multiple tenants (or customers). Each tenant's data is isolated and remains invisible to other tenants. This allows for efficient resource utilization and cost savings, as multiple tenants can share the same infrastructure while maintaining their own separate environments.
+
+```typescript
+// ️⚙️ Terminal -generate files
+nest g mo data-source
+nest g s data-source
+nest g resource users
+
+// -------
+// 📝 FINAL - data-source.service.ts - NEW FILE
+import { Inject, Injectable, Scope } from '@nestjs/common';
+import { REQUEST } from '@nestjs/core';
+
+@Injectable({ scope: Scope.REQUEST, durable: true }) // 👈
+export class DataSourceService {
+  constructor(@Inject(REQUEST) private readonly requestContext: unknown) {}
+}
+
+// -------
+// 📝 FINAL - data-source.model.ts - NEW FILE
+import { Module } from '@nestjs/common';
+import { DataSourceService } from './data-source.service';
+
+@Module({
+  providers: [
+    DataSourceService,
+    // {
+    //   provide: 'DATA_SOURCE',
+    //   useFactory: (payload) => new DataSource(...),
+    //   scope: Scope.REQUEST,
+    //   durable: true,
+    // },
+  ],
+  exports: [DataSourceService],
+})
+export class DataSourceModule {}
+
+
+// -------
+// 📝 FINAL - users.module.ts - ADDITIONS
+@Module({
+  imports: [DataSourceModule], //
+  controllers: [UsersController],
+  providers: [UsersService]
+})
+export class UsersModule {}
+
+/**
+ * use CURL to trigger s GET HTTP request to the /users endpoint:
+ **/
+curl -X GET "localhost:3000/users"
+
+// ------
+// 📝 FINAL - aggregate-by-tenant.strategy.ts
+import {
+  ContextId,
+  ContextIdFactory,
+  ContextIdResolver,
+  ContextIdResolverFn,
+  ContextIdStrategy,
+  HostComponentInfo,
+} from '@nestjs/core';
+import { Request } from 'express';
+
+export class AggregateByTenantContextIdStrategy implements ContextIdStrategy {
+  // A collection of context identifiers representing separate DI sub-trees per tenant
+  private readonly tenants = new Map<string, ContextId>();
+
+  attach(
+    contextId: ContextId,
+    request: Request,
+  ): ContextIdResolverFn | ContextIdResolver {
+    const tenantId = request.headers['x-tenant-id'] as string;
+    if (!tenantId) {
+      // OR log error depending on what we want to accomplish
+      return () => contextId;
+    }
+
+    let tenantSubTreeId: ContextId;
+    if (this.tenants.has(tenantId)) {
+      tenantSubTreeId = this.tenants.get(tenantId);
+    } else {
+      // Construct a new context id
+      tenantSubTreeId = ContextIdFactory.create();
+      this.tenants.set(tenantId, tenantSubTreeId);
+      setTimeout(() => this.tenants.delete(tenantId), 3000);
+    }
+
+    return {
+      payload: { tenantId },
+      resolve: (info: HostComponentInfo) =>
+        info.isTreeDurable ? tenantSubTreeId : contextId,
+    };
+  }
+}
+
+
+// somewhere in your app, e.g. main.ts
+import { ContextIdStrategy } from '@nestjs/core';
+import { AggregateByTenantContextIdStrategy } from './aggregate-by-tenant.strategy';
+
+
+ContextIdStrategy.apply(new AggregateByTenantContextIdStrategy());
+
+/**
+ * use CURL again and execute the HTTP request to the /users endpoint,
+ * this time passing in the "x-tenant-id" header: (of 1 for demo purposes)
+ * (call the endpoint multiple times)
+**/
+curl -H 'x-tenant-id: 1' localhost:3000/users
+
+/**
+ * Just to verify & double-check that it works as expected,
+ * let's call this endpoint again changing the
+ * x-tenant-id header to a different value
+**/
+curl -H 'x-tenant-id: 2' localhost:3000/users
+curl -H 'x-tenant-id: 3' localhost:3000/users
+```
+
+
+## i18n durable provider example
+
+Internationalization (typically abbreviated as i18n) is the process of designing an application so that it can be adapted to various languages and regions. Adding support for more languages, currencies, etc. shouldn't require project implementation tweaks - and - depending on the implementation (whether we load translations statically or dynamically) we should be able to modify translations on the fly.
+
+What that means is textual elements, such as status messages, error messages, etc. should not be hardcoded - but instead, pulled from a specific translation file/source relevant to a user's region.  This allows for an incredibly flexible system where a user can ask for something in a certain language/currency/etc, and get it returned back to them in that format.
+
+
+```typescript
+// ️⚙️ Terminal - Install dependencies
+npm i accept-language-parser string-format
+npm i -D @types/accept-language-parser @types/string-format
+// generate files
+nest g mo i18n
+nest g s i18n
+
+// ----------
+// 📝 FINAL - i18n.module.ts
+@Module({
+  providers: [I18nService],
+  exports: [I18nService],
+})
+export class I18nModule {}
+
+// ----------
+// 📝 FINAL - i18n.service.ts
+import { Inject } from '@nestjs/common';
+import { Injectable, Scope } from '@nestjs/common';
+import { REQUEST } from '@nestjs/core';
+import type * as Schema from '../assets/locales/en.json';
+import * as en from '../assets/locales/en.json';
+import * as pl from '../assets/locales/pl.json';
+import format from 'string-format';
+
+type PathsToStringProps<T> = T extends string
+  ? []
+  : {
+      [K in Extract<keyof T, string>]: [K, ...PathsToStringProps<T[K]>];
+    }[Extract<keyof T, string>];
+
+type Join<T extends string[]> = T extends []
+  ? never
+  : T extends [infer F]
+  ? F
+  : T extends [infer F, ...infer R]
+  ? F extends string
+    ? `${F}.${Join<Extract<R, string[]>>}`
+    : never
+  : string;
+
+@Injectable({ scope: Scope.REQUEST, durable: true })
+export class I18nService {
+  constructor(
+    @Inject(REQUEST) private readonly payload: { localeCode: string },
+  ) {}
+
+  public static readonly defaultLanguage = 'en';
+  public static readonly supportedLanguages = ['en', 'pl'];
+  private readonly locales: Record<string, typeof Schema> = { en, pl };
+
+  translate(
+    key: Join<PathsToStringProps<typeof Schema>>,
+    ...args: Array<string | Record<string, unknown>>
+  ): string {
+    const locale =
+      this.locales[this.payload.localeCode ?? I18nService.defaultLanguage];
+
+    // To support dot notation: "ERRORS.USER_NOT_FOUND"
+    const text: string = key.split('.').reduce((o, i) => o[i], locale);
+    return format(text, ...args);
+  }
+}
+
+// ----------
+// 📝 initial - en.json
+{
+  "HELLO": "Hello"
+}
+// FINAL
+{
+  "HELLO": "Hello {firstName}",
+  "ERRORS": {
+    "USER_NOT_FOUND": "User {firstName} does not exist"
+  }
+}
+
+// ----------
+// 📝 initial - pl.ts
+{
+  "HELLO": "Czesc"
+}
+// FINAL
+{
+  "HELLO": "Czesc {firstName}",
+  "ERRORS": {
+    "USER_NOT_FOUND": "Uzytkownik {firstName} nie istnieje"
+  }
+}
+
+// ----------
+// 📝 tsconfig.json - ADDITION
+"resolveJsonModule": true,
+
+
+// ----------
+// 📝 FINAL - aggregate-by-locale.strategy.ts.ts
+import {
+  ContextId,
+  ContextIdFactory,
+  ContextIdResolver,
+  ContextIdResolverFn,
+  ContextIdStrategy,
+  HostComponentInfo,
+} from '@nestjs/core';
+import { pick } from 'accept-language-parser';
+import { Request } from 'express';
+import { I18nService } from '../i18n/i18n.service';
+
+export class AggregateByLocaleContextIdStrategy implements ContextIdStrategy {
+  // A collection of context identifiers representing separate DI sub-trees per locale
+  private readonly locales = new Map<string, ContextId>();
+
+  attach(
+    contextId: ContextId,
+    request: Request,
+  ): ContextIdResolverFn | ContextIdResolver {
+    const localeCode =
+      pick(
+        I18nService.supportedLanguages,
+        request.headers['accept-language'],
+      ) ?? I18nService.defaultLanguage;
+
+    let localeSubTreeId: ContextId;
+    if (this.locales.has(localeCode)) {
+      localeSubTreeId = this.locales.get(localeCode);
+    } else {
+      // Construct a new context id
+      localeSubTreeId = ContextIdFactory.create();
+      this.locales.set(localeCode, localeSubTreeId);
+      setTimeout(() => this.locales.delete(localeCode), 3000);
+    }
+
+    return {
+      payload: { localeCode },
+      resolve: (info: HostComponentInfo) =>
+        info.isTreeDurable ? localeSubTreeId : contextId,
+    };
+  }
+}
+
+// ----------
+// 📝 app.module.ts - ADDITIONS / UPDATES
+// update to use AggregateByLocaleContextIdStrategy
+import { AggregateByLocaleContextIdStrategy } from './core/aggregate-by-locale.strategy';
+
+ContextIdFactory.apply(new AggregateByLocaleContextIdStrategy()); // 👈
+
+// ----------
+// 📝 FINAL - app.service.ts - UPDATES
+import { Injectable } from '@nestjs/common';
+import { I18nService } from './i18n/i18n.service';
+
+@Injectable()
+export class AppService {
+  constructor(private readonly i18nService: I18nService) {}
+
+  getHello(): string {
+    return this.i18nService.translate('ERRORS.USER_NOT_FOUND', { // 👈
+      firstName: 'Kamil',
+    });
+  }
+}
+
+/**
+ * use CURL to test our endpoint - first - without passing any headers
+**/
+curl localhost:3000
+// Now let's specify the Accept-Language header, setting PL (for polish) or EN (for english)
+curl -H 'accept-language: pl' localhost:3000
+curl -H 'accept-language: en' localhost:3000
+```
