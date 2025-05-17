@@ -6,6 +6,7 @@ import { CoffeesModule } from './coffees/coffees.module';
 import { CoffeeRatingModule } from './coffee-rating/coffee-rating.module';
 import { validate } from './config/env.validation';
 import { CommonModule } from './common/common.module';
+import { AlarmsModule } from './alarms/application/alarms.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { CommonModule } from './common/common.module';
     CoffeesModule,
     CoffeeRatingModule,
     CommonModule,
+    AlarmsModule,
   ],
   controllers: [],
   providers: [],
