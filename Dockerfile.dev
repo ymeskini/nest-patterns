@@ -1,0 +1,15 @@
+FROM node:22
+
+WORKDIR /usr/src/app
+
+COPY package*.json ./
+
+RUN npm install
+
+# Don't copy source files - we'll mount them as a volume
+# for development to enable hot reloading
+
+EXPOSE 3000
+
+# Use npm run start:dev for development with hot-reload
+CMD ["npm", "run", "start:dev"]
