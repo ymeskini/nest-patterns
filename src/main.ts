@@ -11,7 +11,7 @@ import { WrapResponseInterceptor } from './common/interceptors/wrap-response.int
 const PORT = process.env.PORT ?? 3000;
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule.register({ driver: 'orm' }));
 
   app.use(morgan('tiny'));
   app.useGlobalPipes(

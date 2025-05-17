@@ -7,6 +7,9 @@ import { CoffeeRatingModule } from './coffee-rating/coffee-rating.module';
 import { validate } from './config/env.validation';
 import { CommonModule } from './common/common.module';
 import { AlarmsModule } from './alarms/application/alarms.module';
+import { CoreModule } from './core/core.module';
+import { ApplicationBootstrapOptions } from './common/interfaces/application-bootstrap-options.interface';
+import { AlarmsInfrastructureModule } from './alarms/infrastructure/alarms-infrastructure.module';
 
 @Module({
   imports: [
@@ -32,9 +35,21 @@ import { AlarmsModule } from './alarms/application/alarms.module';
     CoffeesModule,
     CoffeeRatingModule,
     CommonModule,
-    AlarmsModule,
+    CoreModule,
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule {
+  static register(options: ApplicationBootstrapOptions) {
+    return {
+      module: AppModule,
+      imports: [
+        CoreModule.forRoot(options),
+        AlarmsModule.withInfrastructure(
+          AlarmsInfrastructureModule.use(options.driver),
+        ),
+      ],
+    };
+  }
+}
