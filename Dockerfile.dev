@@ -6,8 +6,7 @@ COPY package*.json ./
 
 RUN npm install
 
-# Don't copy source files - we'll mount them as a volume
-# for development to enable hot reloading
+COPY . .
 
 EXPOSE 3000
 
