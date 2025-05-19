@@ -9,7 +9,7 @@ import {
   catchError,
   map,
   Observable,
-  tap,
+  // tap,
   throwError,
   timeout,
   TimeoutError,
@@ -18,11 +18,11 @@ import {
 @Injectable()
 export class WrapResponseInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    console.log('Before...');
+    // console.log('Before...');
 
     return next.handle().pipe(
       map<object, object>((data) => ({ data })),
-      tap((data) => console.log('After...', data)),
+      // tap((data) => console.log('After...', data)),
       timeout(3000),
       catchError((err) => {
         if (err instanceof TimeoutError) {

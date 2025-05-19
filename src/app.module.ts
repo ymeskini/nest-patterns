@@ -10,6 +10,8 @@ import { AlarmsModule } from './alarms/application/alarms.module';
 import { CoreModule } from './core/core.module';
 import { ApplicationBootstrapOptions } from './common/interfaces/application-bootstrap-options.interface';
 import { AlarmsInfrastructureModule } from './alarms/infrastructure/alarms-infrastructure.module';
+import { UsersModule } from './users/users.module';
+import { IamModule } from './iam/iam.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { AlarmsInfrastructureModule } from './alarms/infrastructure/alarms-infra
     CoffeeRatingModule,
     CommonModule,
     CoreModule,
+    UsersModule,
+    IamModule,
   ],
   controllers: [],
   providers: [],
