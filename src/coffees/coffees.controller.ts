@@ -16,6 +16,8 @@ import { CreateCoffeeDto } from './dto/create-coffee.dto';
 import { UpdateCoffeeDto } from './dto/update-coffee.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { ParseIntPipe } from '../common/pipes/parse-int.pipe';
+import { Roles } from 'src/iam/authorization/decorators/roles.decorator';
+import { Role } from 'src/users/enums/role.enum';
 
 @ApiTags('coffees')
 @Controller('coffees')
@@ -41,11 +43,13 @@ export class CoffeesController {
     return this.coffeesService.create(createCoffeeDto);
   }
 
+  @Roles(Role.Admin)
   @Patch(':id')
   update(@Param('id') id: number, @Body() updateCoffeeDto: UpdateCoffeeDto) {
     return this.coffeesService.update(id, updateCoffeeDto);
   }
 
+  @Roles(Role.Admin)
   @Delete(':id')
   remove(@Param('id') id: number) {
     return this.coffeesService.remove(id);

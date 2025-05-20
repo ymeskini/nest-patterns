@@ -76,6 +76,7 @@ export class AuthenticationService {
         this.jwtConfiguration.accessTokenTtl,
         {
           email: user.email,
+          role: user.role,
         },
       ),
       this.signUserToken(user.id, this.jwtConfiguration.refreshTokenTtl, {

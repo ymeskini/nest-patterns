@@ -27,7 +27,6 @@ export class AccessTokenGuard implements CanActivate {
     if (!token) {
       throw new UnauthorizedException();
     }
-    console.log(token);
     try {
       const payload = await this.jwtService.verifyAsync<{ userId: string }>(
         token,
@@ -35,8 +34,7 @@ export class AccessTokenGuard implements CanActivate {
       );
       request[REQUEST_USER_KEY] = payload;
       return true;
-    } catch (error) {
-      console.error('Error verifying token:', error.message);
+    } catch {
       throw new UnauthorizedException();
     }
   }
