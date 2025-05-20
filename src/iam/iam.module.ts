@@ -12,6 +12,7 @@ import { User } from '../users/entities/user.entity';
 import jwtConfig from './config/jwt.config';
 import { AuthenticationGuard } from './authentication/guards/authentication.guard';
 import { AccessTokenGuard } from './authentication/guards/access-token.guard';
+import { RefreshTokenIdsStorage } from './authentication/refresh-token-ids.storage';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AccessTokenGuard } from './authentication/guards/access-token.guard';
     { provide: APP_GUARD, useClass: AuthenticationGuard },
     AccessTokenGuard,
     AuthenticationService,
+    RefreshTokenIdsStorage,
   ],
   controllers: [AuthenticationController],
 })
