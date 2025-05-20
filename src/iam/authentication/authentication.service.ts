@@ -14,6 +14,7 @@ import { HashingService } from '../hashing/hashing.service';
 import { SignUpDto } from './dto/sign-up.dto';
 import jwtConfig from '../config/jwt.config';
 import { ActiveUserData } from '../interfaces/active-user-data.interface';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @Injectable()
 export class AuthenticationService {
@@ -58,21 +59,57 @@ export class AuthenticationService {
       throw new UnauthorizedException();
     }
 
-    const accessToken = await this.jwtService.signAsync(
-      {
-        sub: user.id,
-        email: user.email,
-      } as ActiveUserData,
-      {
-        audience: this.jwtConfiguration.audience,
-        issuer: this.jwtConfiguration.issuer,
-        expiresIn: this.jwtConfiguration.accessTokenTtl,
-        secret: this.jwtConfiguration.secret,
-      },
-    );
+    return await this.generateTokens(user);
+  }
+
+  async generateTokens(user: User) {
+    const [accessToken, refreshToken] = await Promise.all([
+      this.signUserToken<Partial<ActiveUserData>>(
+        user.id,
+        this.jwtConfiguration.accessTokenTtl,
+        {
+          email: user.email,
+        },
+      ),
+      this.signUserToken(user.id, this.jwtConfiguration.refreshTokenTtl),
+    ]);
 
     return {
       accessToken,
+      refreshToken,
     };
+  }
+
+  async refreshTokens(refreshTokenDto: RefreshTokenDto) {
+    try {
+      const { sub } = await this.jwtService.verifyAsync<
+        Pick<ActiveUserData, 'sub'>
+      >(refreshTokenDto.refreshToken, {
+        secret: this.jwtConfiguration.secret,
+        audience: this.jwtConfiguration.audience,
+        issuer: this.jwtConfiguration.issuer,
+      });
+      const user = await this.userRepository.findOneByOrFail({
+        id: sub,
+      });
+      return this.generateTokens(user);
+    } catch {
+      throw new UnauthorizedException();
+    }
+  }
+
+  private signUserToken<T>(userId: number, expiresIn: number, payload?: T) {
+    return this.jwtService.signAsync(
+      {
+        sub: userId,
+        ...payload,
+      },
+      {
+        expiresIn,
+        audience: this.jwtConfiguration.audience,
+        issuer: this.jwtConfiguration.issuer,
+        secret: this.jwtConfiguration.secret,
+      },
+    );
   }
 }
