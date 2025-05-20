@@ -1363,3 +1363,19 @@ curl localhost:3000
 curl -H 'accept-language: pl' localhost:3000
 curl -H 'accept-language: en' localhost:3000
 ```
+
+
+
+# To create an API key run repl inside the container
+First launch a terminal inside the Docker container and run:
+```shell
+npm run start:repl
+```
+and run the following:
+
+```shell
+await get("ApiKeyRepository").save({ uuid, key: payload.hashedKey, user: { id: 1 } })
+payload = await get(ApiKeysService).createAndHash(uuid)
+# copy the apiKey from payload
+uuid = 'random_unique_id'
+```

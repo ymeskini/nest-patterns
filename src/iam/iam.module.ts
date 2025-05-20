@@ -16,10 +16,12 @@ import { RefreshTokenIdsStorage } from './authentication/refresh-token-ids.stora
 import { RolesGuard } from './authorization/guards/roles.guard';
 import { PermissionsGuard } from './authorization/guards/permissions.guard';
 import { ApiKeysService } from './authentication/api-keys.service';
+import { ApiKeyGuard } from './authentication/guards/api-key.guard';
+import { ApiKey } from '../users/api-keys/entities/api-key.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, ApiKey]),
     JwtModule.registerAsync(jwtConfig.asProvider()),
     ConfigModule.forFeature(jwtConfig),
   ],
@@ -28,6 +30,7 @@ import { ApiKeysService } from './authentication/api-keys.service';
     { provide: APP_GUARD, useClass: AuthenticationGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
+    ApiKeyGuard,
     AccessTokenGuard,
     AuthenticationService,
     RefreshTokenIdsStorage,

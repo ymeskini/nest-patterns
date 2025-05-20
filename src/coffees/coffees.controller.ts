@@ -33,7 +33,7 @@ export class CoffeesController {
     return this.coffeesService.findAll(paginationQuery);
   }
 
-  @Auth(AuthType.Bearer, AuthType.ApiKey)
+  @Auth(AuthType.ApiKey)
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const coffee = await this.coffeesService.findOne(id);
