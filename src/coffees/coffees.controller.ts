@@ -16,8 +16,10 @@ import { CreateCoffeeDto } from './dto/create-coffee.dto';
 import { UpdateCoffeeDto } from './dto/update-coffee.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { ParseIntPipe } from '../common/pipes/parse-int.pipe';
-import { Roles } from 'src/iam/authorization/decorators/roles.decorator';
-import { Role } from 'src/users/enums/role.enum';
+import { Roles } from '../iam/authorization/decorators/roles.decorator';
+import { Role } from '../users/enums/role.enum';
+import { Permissions } from '../iam/authorization/decorators/permissions.decorator';
+import { Permission } from '../iam/authorization/permission.type';
 
 @ApiTags('coffees')
 @Controller('coffees')
@@ -38,6 +40,7 @@ export class CoffeesController {
     return coffee;
   }
 
+  @Permissions(Permission.CreateCoffee)
   @Post()
   create(@Body() createCoffeeDto: CreateCoffeeDto) {
     return this.coffeesService.create(createCoffeeDto);
