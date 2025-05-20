@@ -25,6 +25,7 @@ export class AuthenticationGuard implements CanActivate {
     this.authTypeGuardMap = {
       [AuthType.Bearer]: this.accessTokenGuard,
       [AuthType.None]: { canActivate: () => true },
+      [AuthType.ApiKey]: this.accessTokenGuard,
     };
   }
 
@@ -40,6 +41,7 @@ export class AuthenticationGuard implements CanActivate {
       const canActivate = await Promise.resolve(
         instance.canActivate(context),
       ).catch((err) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         error = err;
       });
 

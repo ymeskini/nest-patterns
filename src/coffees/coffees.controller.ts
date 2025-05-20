@@ -20,6 +20,8 @@ import { Roles } from '../iam/authorization/decorators/roles.decorator';
 import { Role } from '../users/enums/role.enum';
 import { Permissions } from '../iam/authorization/decorators/permissions.decorator';
 import { Permission } from '../iam/authorization/permission.type';
+import { Auth } from '../iam/authentication/decorators/auth.decorator';
+import { AuthType } from '../iam/authentication/enums/auth-type.enum';
 
 @ApiTags('coffees')
 @Controller('coffees')
@@ -31,6 +33,7 @@ export class CoffeesController {
     return this.coffeesService.findAll(paginationQuery);
   }
 
+  @Auth(AuthType.Bearer, AuthType.ApiKey)
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const coffee = await this.coffeesService.findOne(id);
